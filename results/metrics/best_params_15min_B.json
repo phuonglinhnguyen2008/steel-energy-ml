@@ -1,0 +1,15 @@
+{
+  "Random Forest": {
+    "n_estimators": 300,
+    "max_depth": 12,
+    "min_samples_leaf": 5
+  },
+  "XGBoost": {
+    "n_estimators": 900,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.9,
+    "colsample_bytree": 0.9,
+    "objective": "reg:absoluteerror"
+  }
+}
