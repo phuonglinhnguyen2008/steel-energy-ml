@@ -1,0 +1,21 @@
+ALPHA,model,tiết_kiệm_%,%_lợi_ích_đạt_được
+0.1,XGBoost 24h (Model B),5.05,61.5
+0.1,XGBoost 24h (Model A),5.88,71.7
+0.1,Seasonal naive 7 ngày,2.08,25.4
+0.1,Naive (persistence),2.51,30.6
+0.2,XGBoost 24h (Model B),13.5,82.6
+0.2,XGBoost 24h (Model A),14.29,87.5
+0.2,Seasonal naive 7 ngày,10.55,64.6
+0.2,Naive (persistence),10.42,63.8
+0.3,XGBoost 24h (Model B),21.99,90.0
+0.3,XGBoost 24h (Model A),22.73,93.0
+0.3,Seasonal naive 7 ngày,19.15,78.4
+0.3,Naive (persistence),18.26,74.7
+0.5,XGBoost 24h (Model B),32.94,84.1
+0.5,XGBoost 24h (Model A),33.73,86.1
+0.5,Seasonal naive 7 ngày,30.09,76.8
+0.5,Naive (persistence),29.43,75.1
+0.7,XGBoost 24h (Model B),41.14,85.1
+0.7,XGBoost 24h (Model A),41.54,85.9
+0.7,Seasonal naive 7 ngày,40.05,82.8
+0.7,Naive (persistence),38.99,80.6

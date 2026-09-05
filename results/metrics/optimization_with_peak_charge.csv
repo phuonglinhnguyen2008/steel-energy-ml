@@ -1,0 +1,5 @@
+model,chi_phí_không_tối_ưu_triệu_đ,chi_phí_theo_dự_báo_triệu_đ,chi_phí_lý_tưởng_triệu_đ,tiết_kiệm_%,tiết_kiệm_tối_đa_%,%_lợi_ích_đạt_được
+XGBoost 24h (Model B),365.4,285.0,276.1,21.99,24.44,90.0
+Hybrid 24h (Model B),365.4,291.7,276.1,20.16,24.44,82.5
+XGBoost 24h (Model A),365.4,282.3,276.1,22.73,24.44,93.0
+Seasonal naive 7 ngày,365.4,295.4,276.1,19.15,24.44,78.4

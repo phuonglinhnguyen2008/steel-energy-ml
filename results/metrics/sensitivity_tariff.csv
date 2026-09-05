@@ -1,0 +1,21 @@
+kịch_bản_giá,model,tiết_kiệm_%,%_lợi_ích_đạt_được
+chênh lệch hẹp,XGBoost 24h (Model B),19.5,88.0
+chênh lệch hẹp,XGBoost 24h (Model A),20.27,91.5
+chênh lệch hẹp,Seasonal naive 7 ngày,16.58,74.8
+chênh lệch hẹp,Naive (persistence),15.84,71.5
+tham khảo,XGBoost 24h (Model B),21.99,90.0
+tham khảo,XGBoost 24h (Model A),22.73,93.0
+tham khảo,Seasonal naive 7 ngày,19.15,78.4
+tham khảo,Naive (persistence),18.26,74.7
+chênh lệch rộng,XGBoost 24h (Model B),23.81,91.3
+chênh lệch rộng,XGBoost 24h (Model A),24.52,94.0
+chênh lệch rộng,Seasonal naive 7 ngày,21.07,80.8
+chênh lệch rộng,Naive (persistence),20.11,77.1
+không tính công suất,XGBoost 24h (Model B),15.25,100.0
+không tính công suất,XGBoost 24h (Model A),15.25,100.0
+không tính công suất,Seasonal naive 7 ngày,15.25,100.0
+không tính công suất,Naive (persistence),15.25,100.0
+công suất đắt gấp đôi,XGBoost 24h (Model B),23.51,88.5
+công suất đắt gấp đôi,XGBoost 24h (Model A),24.4,91.8
+công suất đắt gấp đôi,Seasonal naive 7 ngày,20.11,75.7
+công suất đắt gấp đôi,Naive (persistence),19.16,72.1

@@ -353,42 +353,170 @@ Thấp điểm    mọi ngày  22:00-04:00
 Bình thường  phần còn lại
 ```
 
-Giả định vận hành: 30% điện năng trong ngày là dịch chuyển được, ví dụ nấu luyện theo mẻ, sấy, nạp lò. Phần còn lại là tải nền bắt buộc. Trần công suất bằng đỉnh phụ tải thực tế, tức không được tạo đỉnh mới.
+Giả định vận hành: 30% điện năng trong ngày là dịch chuyển được, ví dụ nấu luyện theo mẻ, sấy, nạp lò. Phần còn lại là tải nền bắt buộc.
 
 Mỗi ngày giải một bài quy hoạch tuyến tính xếp lịch tải rẻ nhất.
 
 > Đơn giá trong code là giá tham khảo để minh hoạ, không phải biểu giá hiện hành. Trước khi đưa vào báo cáo phải thay bằng biểu giá EVN đang áp dụng cho cấp điện áp của nhà máy. Cấu trúc ba khung giờ thì ổn định, chỉ đơn giá là thay đổi.
 
-## Kết quả
-
-Trên tháng 12/2018:
+## Bài toán viết đúng theo công thức chị đưa
 
 ```text
-tiết kiệm chi phí điện   khoảng 15%
-giảm đỉnh tiêu thụ       khoảng 18%
+min_x   sum_t  p_t * (b_t + x_t)
+
+với     sum_t  x_t = E_shiftable
+        0 <= x_t <= C - b_hat_t     cho từng khung t
 ```
 
-Nhưng chỗ thú vị hơn không nằm ở hai con số đó.
+`b_hat_t` là tải nền dự báo tại từng khung 15 phút, `C` là công suất đăng ký. Số hạng `p_t * b_t` là hằng số nên không ảnh hưởng argmin, vì vậy hàm mục tiêu truyền vào linprog chỉ còn `p_t * x_t`.
 
-Khi so các model với nhau, mọi model đều đạt 100% lợi ích của kế hoạch lý tưởng. Kể cả model dở.
+Em kiểm tra lại nghiệm trên cả 31 ngày của tập test:
 
-Lý do là khi nhà máy còn nhiều dư địa công suất thì lịch tối ưu gần như luôn là dồn hết vào giờ thấp điểm, gần như không phụ thuộc dự báo.
+```text
+0 <= x_t <= C - b_hat_t  thoả mãn      31/31
+sum_t x_t = E_shiftable  thoả mãn      31/31
+nghiệm tối ưu, không tệ hơn greedy     31/31
+```
 
-Nên em quét thử trần công suất từ chặt đến rộng:
+## Hai lỗi chị bắt được
 
-| Trần công suất | Naive | Seasonal naive | XGBoost A | XGBoost B |
+### Lỗi thứ nhất: profile dự báo không đi vào ràng buộc
+
+Bản đầu viết:
+
+```python
+bounds = [(0, cap)] * n
+```
+
+Một scalar duy nhất áp cho cả 96 khung. LP chỉ nhìn thấy hai con số của dự báo là tổng và đỉnh, còn hình dạng 96 điểm thì không.
+
+Em thử lấy một dự báo rồi đảo ngược trục thời gian, sáng thành đêm và đêm thành sáng. Hai chuỗi lệch nhau trung bình 29.63 kWh mỗi khung nhưng cùng tổng và cùng đỉnh:
+
+```text
+Hai kế hoạch giống hệt nhau : True
+Sai khác tối đa             : 0.0 kWh
+```
+
+Dự báo sai hoàn toàn về mặt thời gian mà kế hoạch không đổi một chút nào. Sửa lại thành `bounds = list(zip(zeros, C - b_hat))` thì cùng phép thử cho sai khác tối đa 68.86 kWh.
+
+### Lỗi thứ hai: C không phải hằng số
+
+Chỗ này em không tự thấy, phải đến khi chị viết công thức ra mới lộ. Trong công thức, `C` là một hằng số. Còn code của em tính `C` từ chính dữ liệu, và tệ hơn là tính khác nhau cho hai bên:
+
+```python
+cap_hat = forecast.max() * PEAK_CAP_RATIO   # kế hoạch
+cap     = actual.max()   * PEAK_CAP_RATIO   # phương án lý tưởng
+```
+
+Nghĩa là kế hoạch và phương án lý tưởng giải hai bài toán trên hai miền ràng buộc khác nhau. Mức lệch không hề nhỏ:
+
+```text
+C của kế hoạch trừ C của lý tưởng (kW)
+    XGBoost         trung bình  +0.35,  dao động -63.79 .. +76.45
+    Seasonal naive  trung bình  +9.96,  dao động -68.00 .. +122.54
+    Naive           trung bình  +2.23,  dao động -73.19 .. +129.14
+    Trên 74-84% số ngày mức lệch vượt 5 kW
+```
+
+Model nào dự báo đỉnh cao hơn thực tế thì tự được nới ràng buộc. Seasonal naive trung bình được nới gần 10 kW so với phương án lý tưởng, tức là được ưu ái vì dự báo sai.
+
+Em sửa thành một hằng số duy nhất cho cả kỳ, suy ra từ phụ tải thực tế nên không model nào có lợi thế:
+
+```text
+C = 149.18 kW
+```
+
+## Vì sao chỉ tính tiền điện năng thì chưa đủ
+
+Sửa xong hai lỗi trên, em chạy lại kịch bản chỉ tính tiền điện năng thì mọi model đều đạt đúng 100% lợi ích của phương án lý tưởng. Lý do:
+
+```text
+24 khung giờ thấp điểm có dư địa   1.640 kWh
+lượng điện cần dịch chuyển            922 kWh
+```
+
+Giờ rẻ một mình đã thừa chỗ chứa hết, ràng buộc không bao giờ bị siết, nên đáp án luôn là dồn hết vào giờ thấp điểm bất kể dự báo thế nào.
+
+Ở bản trước em có một bảng quét trần công suất, và bảng đó cho thấy khác biệt giữa các model. Nhưng sau khi C thành hằng số dùng chung thì bảng đó cho mọi model đúng 100%. Nghĩa là khác biệt trong bảng cũ đến từ chỗ mỗi model chịu một ràng buộc khác nhau chứ không phải từ chất lượng dự báo. Em đã bỏ bảng đó đi.
+
+## Thêm giá công suất đăng ký
+
+Để dự báo sai phải trả giá thì cần một ràng buộc gắn vào thời điểm. Thực tế nhà máy có sẵn: tiền công suất đăng ký.
+
+```text
+min   sum_t  p_t * x_t  +  PEAK_CHARGE * P
+với   sum_t x_t = E_shiftable
+      b_t + x_t <= P     cho mọi t
+      0 <= x_t <= C - b_hat_t
+```
+
+`P` là biến phụ, chính là mức đỉnh trong ngày. Ràng buộc `b_t + x_t <= P` gắn thẳng vào tải nền từng khung giờ, nên đoán sai chỗ nào nhà máy chạy nặng thì phải trả bằng một đỉnh cao hơn.
+
+| Model | Chi phí theo dự báo | Tiết kiệm | Phần lợi ích đạt được |
+|---|---:|---:|---:|
+| Phương án lý tưởng | 276.1 | 24.44% | 100% |
+| XGBoost Model A | 282.3 | 22.73% | 93.0% |
+| XGBoost Model B | 285.0 | 21.99% | 90.0% |
+| Hybrid Model B | 291.7 | 20.16% | 82.5% |
+| Seasonal naive 7 ngày | 295.4 | 19.15% | 78.4% |
+| Không tối ưu | 365.4 | 0% | 0% |
+
+Đơn vị triệu đồng, tính trên cả tháng 12.
+
+Khoảng cách giữa XGBoost và seasonal naive là khoảng 14 điểm phần trăm lợi ích, quy ra hơn 13 triệu đồng một tháng.
+
+Một chi tiết em không giải thích được chắc chắn: Model A lại nhỉnh hơn Model B ở đây, dù về MAE thì Model B tốt hơn hẳn. Có thể vì tiền công suất phạt vào sai số ở vùng đỉnh chứ không phải sai số trung bình, mà hai thứ đó không đi cùng nhau. Em nghĩ chỗ này nên nói rõ trong báo cáo là chưa kết luận được, thay vì cố giải thích.
+
+## Độ nhạy theo ALPHA và theo biểu giá
+
+Chị góp ý thêm sensitivity cho ALPHA và tariff assumptions. Cả hai đều chạy trên kịch bản có giá công suất, vì chỉ ở đó sai số dự báo mới chuyển thành tiền.
+
+Số trong bảng là phần lợi ích mỗi model giữ được so với phương án lý tưởng.
+
+### ALPHA — tỉ lệ điện năng dịch chuyển được
+
+| ALPHA | Naive | Seasonal naive | XGBoost A | XGBoost B |
 |---|---:|---:|---:|---:|
-| 45% đỉnh | 92.1% | 96.0% | 94.6% | 92.9% |
-| 55% đỉnh | 91.0% | 97.7% | 99.7% | 99.0% |
-| 65% đỉnh | 89.7% | 97.8% | 100% | 100% |
-| 80% đỉnh | 92.9% | 98.0% | 100% | 100% |
-| 100% đỉnh | 95.9% | 98.7% | 100% | 100% |
+| 10% | 30.6 | 25.4 | 71.7 | 61.5 |
+| 20% | 63.8 | 64.6 | 87.5 | 82.6 |
+| 30% | 74.7 | 78.4 | 93.0 | 90.0 |
+| 50% | 75.1 | 76.8 | 86.1 | 84.1 |
+| 70% | 80.6 | 82.8 | 85.9 | 85.1 |
 
-Số trong bảng là phần lợi ích giữ được so với kế hoạch lý tưởng.
+Kết quả này ngược với trực giác ban đầu của em. Dự báo có giá trị nhất khi tỉ lệ tải dịch chuyển được là NHỎ nhất. Ở ALPHA 10%, naive chỉ giữ được 30.6% lợi ích còn XGBoost giữ 71.7%, chênh hơn 40 điểm.
 
-Ở vùng 55 đến 65% đỉnh, khoảng cách giữa dự báo tốt và naive là 9 đến 10% lợi ích. Đó là vùng mà đầu tư vào model có lãi. Ngoài vùng đó thì gần như không.
+Nghĩ kỹ thì hợp lý. Khi chỉ có ít tải để dịch chuyển thì mỗi kWh phải đặt đúng chỗ mới có tác dụng, sai một chỗ là mất phần lớn lợi ích. Khi có nhiều tải để xoay xở thì đặt sai vài chỗ vẫn còn chỗ khác bù lại, nên dự báo dở cũng không thiệt nhiều.
 
-Em nghĩ đây là kết luận trung thực và đáng giá hơn so với việc chỉ nói model tiết kiệm được 15% chi phí, vì nó chỉ rõ điều kiện để con số đó có ý nghĩa.
+Từ ALPHA 50% trở lên thì mọi model đều tụt về vùng 84 đến 86%, vì bài toán bị siết đến mức không kế hoạch nào tránh được một đỉnh cao.
+
+### Biểu giá
+
+| Kịch bản giá | Naive | Seasonal naive | XGBoost A | XGBoost B |
+|---|---:|---:|---:|---:|
+| Chênh lệch hẹp | 71.5 | 74.8 | 91.5 | 88.0 |
+| Tham khảo | 74.7 | 78.4 | 93.0 | 90.0 |
+| Chênh lệch rộng | 77.1 | 80.8 | 94.0 | 91.3 |
+| Công suất đắt gấp đôi | 72.1 | 75.7 | 91.8 | 88.5 |
+| Không tính giá công suất | 100.0 | 100.0 | 100.0 | 100.0 |
+
+Bốn kịch bản đầu cho kết quả rất ổn định. Dù đơn giá cao điểm chạy từ 2.200 tới 4.500 đồng, dù giá công suất tăng gấp đôi, khoảng cách giữa XGBoost và naive vẫn giữ khoảng 17 đến 20 điểm phần trăm. Kết luận không phụ thuộc vào bộ đơn giá em chọn, điều này quan trọng vì đơn giá vẫn là số tham khảo.
+
+Dòng cuối mới là dòng đáng chú ý. Bỏ giá công suất đi thì mọi model đều về đúng 100%. Chính tiền công suất, chứ không phải chênh lệch giá điện theo giờ, mới là thứ làm cho độ chính xác dự báo có giá trị.
+
+### Trả lời câu hỏi của chị
+
+> Làm vậy chứng minh rõ forecast accuracy ảnh hưởng optimization
+
+Có, và điều kiện nêu được cụ thể:
+
+```text
+Dự báo chính xác tạo ra khác biệt kinh tế khi:
+    có tính tiền công suất đăng ký    bắt buộc, không có thì mọi model như nhau
+    tỉ lệ tải dịch chuyển được nhỏ    ALPHA 10% chênh 41 điểm, ALPHA 70% chỉ còn 5
+
+Không phụ thuộc vào:
+    bộ đơn giá cụ thể                 bốn kịch bản giá cho kết quả như nhau
+```
 
 ---
 
